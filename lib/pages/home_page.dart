@@ -22,14 +22,12 @@ class _HomePageState extends State<HomePage> {
 
   bool isEnabled = false;
 
-  // Menyimpan SEMUA notifikasi yang diterima
-  final List<NotificationModel> notifications = [];
-
-  // Menyimpan HANYA notifikasi yang terdeteksi sebagai transaksi
+  // Hanya menyimpan transaksi yang berhasil terdeteksi.
   final List<TransactionModel> transactions = [];
 
   // Stream subscription
-  StreamSubscription<Map<dynamic, dynamic>>? notificationSubscription;
+  StreamSubscription<Map<dynamic, dynamic>>?
+      notificationSubscription;
 
   // =========================================================
   // INIT STATE
@@ -60,7 +58,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> checkPermission() async {
     try {
-      final enabled = await NotificationService.isNotificationListenerEnabled();
+      final enabled =
+          await NotificationService
+              .isNotificationListenerEnabled();
 
       if (!mounted) return;
 
@@ -68,7 +68,9 @@ class _HomePageState extends State<HomePage> {
         isEnabled = enabled;
       });
     } catch (e) {
-      debugPrint('Error cek notification access: $e');
+      debugPrint(
+        'Error cek notification access: $e',
+      );
     }
   }
 
@@ -78,13 +80,18 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> openSettings() async {
     try {
-      await NotificationService.openNotificationSettings();
+      await NotificationService
+          .openNotificationSettings();
 
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(
+        const Duration(seconds: 1),
+      );
 
       await checkPermission();
     } catch (e) {
-      debugPrint('Error membuka notification settings: $e');
+      debugPrint(
+        'Error membuka notification settings: $e',
+      );
     }
   }
 
@@ -93,101 +100,132 @@ class _HomePageState extends State<HomePage> {
   // =========================================================
 
   void listenToNotifications() {
-    notificationSubscription = NotificationService.notificationStream.listen(
+    notificationSubscription =
+        NotificationService.notificationStream.listen(
       (data) async {
         try {
-          // -----------------------------------------------
+          // ---------------------------------------------------
           // 1. Ubah data Android menjadi NotificationModel
-          // -----------------------------------------------
+          // ---------------------------------------------------
 
-          final notification = NotificationModel.fromMap(data);
+          final notification =
+              NotificationModel.fromMap(data);
 
-          // -----------------------------------------------
-          // 2. Simpan SEMUA notifikasi
-          // -----------------------------------------------
+          // ---------------------------------------------------
+          // 2. PARSING TRANSAKSI
+          // ---------------------------------------------------
 
-          notifications.insert(0, notification);
+          final transaction =
+              TransactionParser.parse(
+            notification,
+          );
 
-          // -----------------------------------------------
-          // 3. Jalankan parser transaksi
-          // -----------------------------------------------
-
-          final transaction = TransactionParser.parse(notification);
-
-          // -----------------------------------------------
-          // 4. CEK APAKAH TRANSAKSI
-          // -----------------------------------------------
+          // ---------------------------------------------------
+          // 3. HANYA PROSES JIKA TRANSAKSI
+          // ---------------------------------------------------
 
           if (transaction != null) {
-            // ---------------------------------------------
-            // Simpan ke daftar transaksi
-            // ---------------------------------------------
+            // -------------------------------------------------
+            // Simpan transaksi
+            // -------------------------------------------------
 
-            transactions.insert(0, transaction);
+            if (!mounted) return;
 
-            // ---------------------------------------------
+            setState(() {
+              transactions.insert(
+                0,
+                transaction,
+              );
+            });
+
+            // -------------------------------------------------
             // LOG TRANSAKSI
-            // ---------------------------------------------
+            // -------------------------------------------------
 
-            debugPrint('================================');
+            debugPrint(
+              '================================',
+            );
 
-            debugPrint('TRANSAKSI TERDETEKSI');
+            debugPrint(
+              'TRANSAKSI TERDETEKSI',
+            );
 
-            debugPrint('Source: ${transaction.source}');
+            debugPrint(
+              'Source: ${transaction.source}',
+            );
 
-            debugPrint('Type: ${transaction.type}');
+            debugPrint(
+              'Type: ${transaction.type}',
+            );
 
-            debugPrint('Amount: ${transaction.amount}');
+            debugPrint(
+              'Amount: ${transaction.amount}',
+            );
 
-            debugPrint('Description: ${transaction.description}');
+            debugPrint(
+              'Description: ${transaction.description}',
+            );
 
-            debugPrint('Mengirim transaksi ke backend...');
+            debugPrint(
+              'Sender: ${transaction.sender}',
+            );
 
-            // ---------------------------------------------
-            // KIRIM HANYA TRANSAKSI KE BACKEND
-            // ---------------------------------------------
+            debugPrint(
+              'Timestamp: ${transaction.timestamp}',
+            );
 
-            final success = await WebhookService.sendTransaction(
+            debugPrint(
+              'Mengirim transaksi ke backend...',
+            );
+
+            // -------------------------------------------------
+            // KIRIM TRANSAKSI KE BACKEND
+            // -------------------------------------------------
+
+            final success =
+                await WebhookService.sendTransaction(
               transaction,
               notification.text,
             );
 
             if (success) {
-              debugPrint('TRANSAKSI BERHASIL DIKIRIM KE BACKEND');
+              debugPrint(
+                'TRANSAKSI BERHASIL DIKIRIM KE BACKEND',
+              );
             } else {
-              debugPrint('GAGAL MENGIRIM TRANSAKSI KE BACKEND');
+              debugPrint(
+                'GAGAL MENGIRIM TRANSAKSI KE BACKEND',
+              );
             }
 
-            debugPrint('================================');
-          } else {
-            // ---------------------------------------------
-            // BUKAN TRANSAKSI
-            // ---------------------------------------------
-
-            debugPrint('Notifikasi biasa diabaikan:');
-
-            debugPrint('Package: ${notification.packageName}');
-
-            debugPrint('Title: ${notification.title}');
-
-            debugPrint('Text: ${notification.text}');
-
-            debugPrint('Tidak dikirim ke backend.');
+            debugPrint(
+              '================================',
+            );
           }
 
-          // -----------------------------------------------
-          // 5. UPDATE UI
-          // -----------------------------------------------
+          // ---------------------------------------------------
+          // BUKAN TRANSAKSI
+          // ---------------------------------------------------
+          //
+          // Tidak dimasukkan ke UI.
+          // Tidak dikirim ke backend.
+          // ---------------------------------------------------
 
-          if (!mounted) return;
-
-          setState(() {});
+          else {
+            debugPrint(
+              'Notifikasi bukan transaksi - diabaikan.',
+            );
+          }
         } catch (e) {
-          debugPrint('Error membaca data notifikasi: $e');
+          debugPrint(
+            'Error membaca data notifikasi: $e',
+          );
         }
       },
       onError: (error) {
-        debugPrint('Notification stream error: $error');
+        debugPrint(
+          'Notification stream error: $error',
+        );
       },
     );
   }
@@ -198,8 +236,15 @@ class _HomePageState extends State<HomePage> {
 
   int get totalIncome {
     return transactions
-        .where((transaction) => transaction.isIncome)
-        .fold(0, (total, transaction) => total + transaction.amount);
+        .where(
+          (transaction) =>
+              transaction.isIncome,
+        )
+        .fold(
+          0,
+          (total, transaction) =>
+              total + transaction.amount,
+        );
   }
 
   // =========================================================
@@ -208,8 +253,15 @@ class _HomePageState extends State<HomePage> {
 
   int get totalExpense {
     return transactions
-        .where((transaction) => transaction.isExpense)
-        .fold(0, (total, transaction) => total + transaction.amount);
+        .where(
+          (transaction) =>
+              transaction.isExpense,
+        )
+        .fold(
+          0,
+          (total, transaction) =>
+              total + transaction.amount,
+        );
   }
 
   // =========================================================
@@ -217,7 +269,10 @@ class _HomePageState extends State<HomePage> {
   // =========================================================
 
   String formatRupiah(int amount) {
-    return 'Rp${amount.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (match) => '${match[1]}.')}';
+    return 'Rp${amount.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]}.',
+    )}';
   }
 
   // =========================================================
@@ -227,15 +282,18 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FB),
+      backgroundColor:
+          const Color(0xFFF5F7FB),
 
       // =====================================================
       // APP BAR
       // =====================================================
+
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        surfaceTintColor: Colors.transparent,
+        surfaceTintColor:
+            Colors.transparent,
         titleSpacing: 20,
 
         title: const Row(
@@ -253,7 +311,8 @@ class _HomePageState extends State<HomePage> {
               style: TextStyle(
                 color: Color(0xFF111827),
                 fontSize: 21,
-                fontWeight: FontWeight.w700,
+                fontWeight:
+                    FontWeight.w700,
               ),
             ),
           ],
@@ -263,16 +322,25 @@ class _HomePageState extends State<HomePage> {
       // =====================================================
       // BODY
       // =====================================================
+
       body: RefreshIndicator(
         onRefresh: checkPermission,
 
         child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics:
+              const AlwaysScrollableScrollPhysics(),
 
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+          padding:
+              const EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            30,
+          ),
 
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
 
             children: [
               // =================================================
@@ -284,17 +352,23 @@ class _HomePageState extends State<HomePage> {
 
                 style: TextStyle(
                   fontSize: 25,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF111827),
+                  fontWeight:
+                      FontWeight.w800,
+                  color:
+                      Color(0xFF111827),
                 ),
               ),
 
               const SizedBox(height: 6),
 
               const Text(
-                'Pantau transaksi dari notifikasi perangkat Anda.',
+                'Pantau transaksi dari aplikasi keuangan Anda.',
 
-                style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                style: TextStyle(
+                  fontSize: 14,
+                  color:
+                      Color(0xFF6B7280),
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -302,6 +376,7 @@ class _HomePageState extends State<HomePage> {
               // =================================================
               // STATUS CARD
               // =================================================
+
               _buildStatusCard(),
 
               const SizedBox(height: 28),
@@ -309,13 +384,16 @@ class _HomePageState extends State<HomePage> {
               // =================================================
               // RINGKASAN
               // =================================================
+
               const Text(
                 'Ringkasan',
 
                 style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF111827),
+                  fontWeight:
+                      FontWeight.w700,
+                  color:
+                      Color(0xFF111827),
                 ),
               ),
 
@@ -324,13 +402,20 @@ class _HomePageState extends State<HomePage> {
               // =================================================
               // UANG MASUK & KELUAR
               // =================================================
+
               Row(
                 children: [
                   Expanded(
                     child: _buildMoneyCard(
-                      icon: Icons.arrow_downward_rounded,
-                      title: 'Uang Masuk',
-                      value: formatRupiah(totalIncome),
+                      icon:
+                          Icons
+                              .arrow_downward_rounded,
+                      title:
+                          'Uang Masuk',
+                      value:
+                          formatRupiah(
+                        totalIncome,
+                      ),
                     ),
                   ),
 
@@ -338,9 +423,15 @@ class _HomePageState extends State<HomePage> {
 
                   Expanded(
                     child: _buildMoneyCard(
-                      icon: Icons.arrow_upward_rounded,
-                      title: 'Uang Keluar',
-                      value: formatRupiah(totalExpense),
+                      icon:
+                          Icons
+                              .arrow_upward_rounded,
+                      title:
+                          'Uang Keluar',
+                      value:
+                          formatRupiah(
+                        totalExpense,
+                      ),
                     ),
                   ),
                 ],
@@ -349,32 +440,17 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 14),
 
               // =================================================
-              // JUMLAH TRANSAKSI & NOTIFIKASI
+              // TOTAL TRANSAKSI
               // =================================================
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.receipt_long_rounded,
 
-                      title: 'Transaksi',
-
-                      value: transactions.length.toString(),
-                    ),
-                  ),
-
-                  const SizedBox(width: 14),
-
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.notifications_none_rounded,
-
-                      title: 'Notifikasi',
-
-                      value: notifications.length.toString(),
-                    ),
-                  ),
-                ],
+              _buildStatCard(
+                icon:
+                    Icons.receipt_long_rounded,
+                title:
+                    'Total Transaksi',
+                value:
+                    transactions.length
+                        .toString(),
               ),
 
               const SizedBox(height: 28),
@@ -382,35 +458,17 @@ class _HomePageState extends State<HomePage> {
               // =================================================
               // TRANSAKSI TERBARU
               // =================================================
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
-                children: [
-                  const Text(
-                    'Transaksi Terbaru',
+              const Text(
+                'Transaksi Terbaru',
 
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-
-                  // TextButton(
-                  //   onPressed: () {},
-
-                  //   child: const Text(
-                  //     'Lihat Semua',
-
-                  //     style: TextStyle(
-                  //       color:
-                  //           Color(0xFF2563EB),
-                  //       fontWeight:
-                  //           FontWeight.w600,
-                  //     ),
-                  //   ),
-                  // ),
-                ],
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight:
+                      FontWeight.w700,
+                  color:
+                      Color(0xFF111827),
+                ),
               ),
 
               const SizedBox(height: 8),
@@ -418,13 +476,19 @@ class _HomePageState extends State<HomePage> {
               // =================================================
               // LIST TRANSAKSI
               // =================================================
+
               if (transactions.isEmpty)
                 _buildEmptyState()
               else
                 Column(
-                  children: transactions.map((transaction) {
-                    return _buildTransactionCard(transaction);
-                  }).toList(),
+                  children:
+                      transactions.map(
+                    (transaction) {
+                      return _buildTransactionCard(
+                        transaction,
+                      );
+                    },
+                  ).toList(),
                 ),
             ],
           ),
@@ -441,50 +505,73 @@ class _HomePageState extends State<HomePage> {
     return Container(
       width: double.infinity,
 
-      padding: const EdgeInsets.all(20),
+      padding:
+          const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+        gradient:
+            const LinearGradient(
+          colors: [
+            Color(0xFF2563EB),
+            Color(0xFF1D4ED8),
+          ],
 
-          begin: Alignment.topLeft,
+          begin:
+              Alignment.topLeft,
 
-          end: Alignment.bottomRight,
+          end:
+              Alignment.bottomRight,
         ),
 
-        borderRadius: BorderRadius.circular(22),
+        borderRadius:
+            BorderRadius.circular(22),
 
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(0.20),
+            color: const Color(
+              0xFF2563EB,
+            ).withOpacity(0.20),
 
             blurRadius: 20,
 
-            offset: const Offset(0, 8),
+            offset:
+                const Offset(0, 8),
           ),
         ],
       ),
 
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
 
         children: [
+          // ---------------------------------------------------
+          // ICON + STATUS
+          // ---------------------------------------------------
+
           Row(
             children: [
               Container(
                 width: 46,
                 height: 46,
 
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                decoration:
+                    BoxDecoration(
+                  color: Colors.white
+                      .withOpacity(0.15),
 
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius:
+                      BorderRadius.circular(
+                    14,
+                  ),
                 ),
 
                 child: const Icon(
-                  Icons.notifications_active_rounded,
+                  Icons
+                      .notifications_active_rounded,
 
-                  color: Colors.white,
+                  color:
+                      Colors.white,
 
                   size: 25,
                 ),
@@ -493,15 +580,21 @@ class _HomePageState extends State<HomePage> {
               const Spacer(),
 
               Container(
-                padding: const EdgeInsets.symmetric(
+                padding:
+                    const EdgeInsets.symmetric(
                   horizontal: 11,
                   vertical: 6,
                 ),
 
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                decoration:
+                    BoxDecoration(
+                  color: Colors.white
+                      .withOpacity(0.15),
 
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius:
+                      BorderRadius.circular(
+                    20,
+                  ),
                 ),
 
                 child: Row(
@@ -510,26 +603,35 @@ class _HomePageState extends State<HomePage> {
                       width: 8,
                       height: 8,
 
-                      decoration: BoxDecoration(
+                      decoration:
+                          BoxDecoration(
                         color: isEnabled
                             ? Colors.greenAccent
                             : Colors.orangeAccent,
 
-                        shape: BoxShape.circle,
+                        shape:
+                            BoxShape.circle,
                       ),
                     ),
 
-                    const SizedBox(width: 7),
+                    const SizedBox(
+                      width: 7,
+                    ),
 
                     Text(
-                      isEnabled ? 'Aktif' : 'Tidak Aktif',
+                      isEnabled
+                          ? 'Aktif'
+                          : 'Tidak Aktif',
 
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
 
                         fontSize: 12,
 
-                        fontWeight: FontWeight.w600,
+                        fontWeight:
+                            FontWeight.w600,
                       ),
                     ),
                   ],
@@ -540,25 +642,37 @@ class _HomePageState extends State<HomePage> {
 
           const SizedBox(height: 22),
 
-          const Text(
-            'Status Notification Listener',
+          // ---------------------------------------------------
+          // STATUS TITLE
+          // ---------------------------------------------------
 
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+          const Text(
+            'Status Monitoring Transaksi',
+
+            style: TextStyle(
+              color:
+                  Colors.white70,
+
+              fontSize: 13,
+            ),
           ),
 
           const SizedBox(height: 5),
 
           Text(
             isEnabled
-                ? 'Listener sedang aktif'
-                : 'Akses notifikasi belum aktif',
+                ? 'Monitoring sedang aktif'
+                : 'Akses belum aktif',
 
-            style: const TextStyle(
-              color: Colors.white,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white,
 
               fontSize: 20,
 
-              fontWeight: FontWeight.w700,
+              fontWeight:
+                  FontWeight.w700,
             ),
           ),
 
@@ -566,17 +680,23 @@ class _HomePageState extends State<HomePage> {
 
           Text(
             isEnabled
-                ? 'MyNotifier siap membaca notifikasi yang masuk.'
-                : 'Aktifkan akses agar MyNotifier dapat membaca notifikasi.',
+                ? 'MyNotifier siap mendeteksi transaksi dari aplikasi keuangan.'
+                : 'Aktifkan akses agar MyNotifier dapat mendeteksi transaksi.',
 
-            style: const TextStyle(
-              color: Colors.white70,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white70,
 
               fontSize: 13,
 
               height: 1.4,
             ),
           ),
+
+          // ---------------------------------------------------
+          // BUTTON AKTIFKAN
+          // ---------------------------------------------------
 
           if (!isEnabled) ...[
             const SizedBox(height: 18),
@@ -585,25 +705,40 @@ class _HomePageState extends State<HomePage> {
               width: double.infinity,
               height: 48,
 
-              child: ElevatedButton(
-                onPressed: openSettings,
+              child:
+                  ElevatedButton(
+                onPressed:
+                    openSettings,
 
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                style:
+                    ElevatedButton.styleFrom(
+                  backgroundColor:
+                      Colors.white,
 
-                  foregroundColor: const Color(0xFF2563EB),
+                  foregroundColor:
+                      const Color(
+                    0xFF2563EB,
+                  ),
 
                   elevation: 0,
 
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(
+                      14,
+                    ),
                   ),
                 ),
 
-                child: const Text(
+                child:
+                    const Text(
                   'Aktifkan Akses Notifikasi',
 
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -623,31 +758,50 @@ class _HomePageState extends State<HomePage> {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(17),
+      padding:
+          const EdgeInsets.all(17),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color:
+            Colors.white,
 
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+            BorderRadius.circular(18),
 
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color:
+              const Color(0xFFE5E7EB),
+        ),
       ),
 
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
 
         children: [
           Container(
             width: 40,
             height: 40,
 
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(0xFFEFF6FF),
 
-              borderRadius: BorderRadius.circular(12),
+              borderRadius:
+                  BorderRadius.circular(
+                12,
+              ),
             ),
 
-            child: Icon(icon, color: const Color(0xFF2563EB), size: 21),
+            child: Icon(
+              icon,
+
+              color:
+                  const Color(0xFF2563EB),
+
+              size: 21,
+            ),
           ),
 
           const SizedBox(height: 15),
@@ -655,10 +809,15 @@ class _HomePageState extends State<HomePage> {
           Text(
             value,
 
-            style: const TextStyle(
+            style:
+                const TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
+
+              fontWeight:
+                  FontWeight.w800,
+
+              color:
+                  Color(0xFF111827),
             ),
           ),
 
@@ -667,7 +826,13 @@ class _HomePageState extends State<HomePage> {
           Text(
             title,
 
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            style:
+                const TextStyle(
+              fontSize: 12,
+
+              color:
+                  Color(0xFF6B7280),
+            ),
           ),
         ],
       ),
@@ -684,51 +849,87 @@ class _HomePageState extends State<HomePage> {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(17),
+      width: double.infinity,
+
+      padding:
+          const EdgeInsets.all(17),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color:
+            Colors.white,
 
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+            BorderRadius.circular(18),
 
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color:
+              const Color(0xFFE5E7EB),
+        ),
       ),
 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
+      child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
 
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(0xFFEFF6FF),
 
-              borderRadius: BorderRadius.circular(12),
+              borderRadius:
+                  BorderRadius.circular(
+                12,
+              ),
             ),
 
-            child: Icon(icon, color: const Color(0xFF2563EB), size: 21),
-          ),
+            child: Icon(
+              icon,
 
-          const SizedBox(height: 15),
+              color:
+                  const Color(0xFF2563EB),
 
-          Text(
-            value,
-
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
+              size: 21,
             ),
           ),
 
-          const SizedBox(height: 2),
+          const SizedBox(width: 14),
 
-          Text(
-            title,
+          Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
 
-            style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            children: [
+              Text(
+                value,
+
+                style:
+                    const TextStyle(
+                  fontSize: 24,
+
+                  fontWeight:
+                      FontWeight.w800,
+
+                  color:
+                      Color(0xFF111827),
+                ),
+              ),
+
+              const SizedBox(height: 2),
+
+              Text(
+                title,
+
+                style:
+                    const TextStyle(
+                  fontSize: 12,
+
+                  color:
+                      Color(0xFF6B7280),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -743,14 +944,23 @@ class _HomePageState extends State<HomePage> {
     return Container(
       width: double.infinity,
 
-      padding: const EdgeInsets.symmetric(vertical: 35, horizontal: 20),
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 35,
+        horizontal: 20,
+      ),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color:
+            Colors.white,
 
-        borderRadius: BorderRadius.circular(20),
+        borderRadius:
+            BorderRadius.circular(20),
 
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color:
+              const Color(0xFFE5E7EB),
+        ),
       ),
 
       child: Column(
@@ -759,16 +969,22 @@ class _HomePageState extends State<HomePage> {
             width: 65,
             height: 65,
 
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(0xFFEFF6FF),
 
-              borderRadius: BorderRadius.circular(20),
+              borderRadius:
+                  BorderRadius.circular(
+                20,
+              ),
             ),
 
             child: const Icon(
               Icons.receipt_long_outlined,
 
-              color: Color(0xFF2563EB),
+              color:
+                  Color(0xFF2563EB),
 
               size: 32,
             ),
@@ -781,22 +997,30 @@ class _HomePageState extends State<HomePage> {
 
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF111827),
+
+              fontWeight:
+                  FontWeight.w700,
+
+              color:
+                  Color(0xFF111827),
             ),
           ),
 
           const SizedBox(height: 7),
 
           const Text(
-            'Notifikasi transaksi yang berhasil\n'
-            'ditangkap akan muncul di sini.',
+            'Transaksi yang berhasil\n'
+            'terdeteksi akan muncul di sini.',
 
-            textAlign: TextAlign.center,
+            textAlign:
+                TextAlign.center,
 
             style: TextStyle(
               fontSize: 13,
-              color: Color(0xFF6B7280),
+
+              color:
+                  Color(0xFF6B7280),
+
               height: 1.5,
             ),
           ),
@@ -809,36 +1033,51 @@ class _HomePageState extends State<HomePage> {
   // TRANSACTION CARD
   // ===========================================================
 
-  Widget _buildTransactionCard(TransactionModel transaction) {
-    final bool isIncome = transaction.isIncome;
+  Widget _buildTransactionCard(
+    TransactionModel transaction,
+  ) {
+    final bool isIncome =
+        transaction.isIncome;
 
     return Container(
       width: double.infinity,
 
-      margin: const EdgeInsets.only(bottom: 12),
+      margin:
+          const EdgeInsets.only(
+        bottom: 12,
+      ),
 
-      padding: const EdgeInsets.all(16),
+      padding:
+          const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
-        color: Colors.white,
+        color:
+            Colors.white,
 
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+            BorderRadius.circular(18),
 
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(
+          color:
+              const Color(0xFFE5E7EB),
+        ),
 
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black
+                .withOpacity(0.03),
 
             blurRadius: 8,
 
-            offset: const Offset(0, 3),
+            offset:
+                const Offset(0, 3),
           ),
         ],
       ),
 
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
 
         children: [
           // ===================================================
@@ -849,20 +1088,34 @@ class _HomePageState extends State<HomePage> {
             width: 45,
             height: 45,
 
-            decoration: BoxDecoration(
-              color: isIncome
-                  ? const Color(0xFFECFDF5)
-                  : const Color(0xFFFEF2F2),
+            decoration:
+                BoxDecoration(
+              color:
+                  isIncome
+                      ? const Color(
+                          0xFFECFDF5,
+                        )
+                      : const Color(
+                          0xFFFEF2F2,
+                        ),
 
-              borderRadius: BorderRadius.circular(14),
+              borderRadius:
+                  BorderRadius.circular(
+                14,
+              ),
             ),
 
             child: Icon(
               isIncome
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
+                  ? Icons
+                      .arrow_downward_rounded
+                  : Icons
+                      .arrow_upward_rounded,
 
-              color: isIncome ? Colors.green : Colors.red,
+              color:
+                  isIncome
+                      ? Colors.green
+                      : Colors.red,
 
               size: 22,
             ),
@@ -873,40 +1126,54 @@ class _HomePageState extends State<HomePage> {
           // ===================================================
           // DATA
           // ===================================================
+
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
 
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
 
                   children: [
                     Expanded(
                       child: Text(
                         transaction.source,
 
-                        style: const TextStyle(
+                        style:
+                            const TextStyle(
                           fontSize: 15,
 
-                          fontWeight: FontWeight.w700,
+                          fontWeight:
+                              FontWeight.w700,
 
-                          color: Color(0xFF111827),
+                          color:
+                              Color(0xFF111827),
                         ),
                       ),
                     ),
 
-                    const SizedBox(width: 8),
+                    const SizedBox(
+                      width: 8,
+                    ),
 
                     Text(
-                      '${isIncome ? '+' : '-'}${transaction.formattedAmount}',
+                      '${isIncome ? '+' : '-'}'
+                      '${transaction.formattedAmount}',
 
-                      style: TextStyle(
+                      style:
+                          TextStyle(
                         fontSize: 14,
 
-                        fontWeight: FontWeight.w800,
+                        fontWeight:
+                            FontWeight.w800,
 
-                        color: isIncome ? Colors.green : Colors.red,
+                        color:
+                            isIncome
+                                ? Colors.green
+                                : Colors.red,
                       ),
                     ),
                   ],
@@ -914,61 +1181,119 @@ class _HomePageState extends State<HomePage> {
 
                 const SizedBox(height: 5),
 
-                Text(
-                  transaction.description,
+                // ------------------------------------------------
+                // SENDER
+                // ------------------------------------------------
 
-                  maxLines: 3,
+                if (transaction.sender.isNotEmpty)
+                  Text(
+                    isIncome
+                        ? 'Dari ${transaction.sender}'
+                        : transaction.description,
 
-                  overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
 
-                  style: const TextStyle(
-                    fontSize: 12,
+                    overflow:
+                        TextOverflow.ellipsis,
 
-                    color: Color(0xFF6B7280),
+                    style:
+                        const TextStyle(
+                      fontSize: 12,
 
-                    height: 1.4,
+                      color:
+                          Color(0xFF6B7280),
+
+                      height: 1.4,
+                    ),
+                  )
+                else
+                  Text(
+                    transaction.description,
+
+                    maxLines: 2,
+
+                    overflow:
+                        TextOverflow.ellipsis,
+
+                    style:
+                        const TextStyle(
+                      fontSize: 12,
+
+                      color:
+                          Color(0xFF6B7280),
+
+                      height: 1.4,
+                    ),
                   ),
-                ),
 
                 const SizedBox(height: 8),
+
+                // ------------------------------------------------
+                // TYPE + TIME
+                // ------------------------------------------------
 
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 8,
                         vertical: 4,
                       ),
 
-                      decoration: BoxDecoration(
-                        color: isIncome
-                            ? const Color(0xFFECFDF5)
-                            : const Color(0xFFFEF2F2),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            isIncome
+                                ? const Color(
+                                    0xFFECFDF5,
+                                  )
+                                : const Color(
+                                    0xFFFEF2F2,
+                                  ),
 
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius:
+                            BorderRadius.circular(
+                          8,
+                        ),
                       ),
 
                       child: Text(
-                        isIncome ? 'Uang Masuk' : 'Uang Keluar',
+                        isIncome
+                            ? 'Uang Masuk'
+                            : 'Uang Keluar',
 
-                        style: TextStyle(
+                        style:
+                            TextStyle(
                           fontSize: 10,
 
-                          fontWeight: FontWeight.w600,
+                          fontWeight:
+                              FontWeight.w600,
 
-                          color: isIncome ? Colors.green : Colors.red,
+                          color:
+                              isIncome
+                                  ? Colors.green
+                                  : Colors.red,
                         ),
                       ),
                     ),
 
-                    const SizedBox(width: 8),
+                    const SizedBox(
+                      width: 8,
+                    ),
 
                     Text(
-                      _formatTimestamp(transaction.timestamp),
+                      _formatTimestamp(
+                        transaction.timestamp,
+                      ),
 
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         fontSize: 10,
-                        color: Color(0xFF9CA3AF),
+
+                        color:
+                            Color(0xFF9CA3AF),
                       ),
                     ),
                   ],
@@ -985,23 +1310,41 @@ class _HomePageState extends State<HomePage> {
   // FORMAT TIMESTAMP
   // ===========================================================
 
-  String _formatTimestamp(String timestamp) {
+  String _formatTimestamp(
+    String timestamp,
+  ) {
     if (timestamp.isEmpty) {
       return '';
     }
 
     try {
-      final milliseconds = int.tryParse(timestamp);
+      final milliseconds =
+          int.tryParse(timestamp);
 
       if (milliseconds == null) {
         return '';
       }
 
-      final date = DateTime.fromMillisecondsSinceEpoch(milliseconds);
+      final date =
+          DateTime.fromMillisecondsSinceEpoch(
+        milliseconds,
+      );
 
-      final hour = date.hour.toString().padLeft(2, '0');
+      final hour =
+          date.hour
+              .toString()
+              .padLeft(
+                2,
+                '0',
+              );
 
-      final minute = date.minute.toString().padLeft(2, '0');
+      final minute =
+          date.minute
+              .toString()
+              .padLeft(
+                2,
+                '0',
+              );
 
       return '$hour:$minute';
     } catch (e) {
